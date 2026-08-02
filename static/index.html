@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Background Remover</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --card: #171a21;
+    --accent: #6d8cff;
+    --text: #e9ebf1;
+    --muted: #9aa1b1;
+    --border: #2a2e3a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 24px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    width: 100%;
+    max-width: 480px;
+    text-align: center;
+  }
+  h1 {
+    font-size: 22px;
+    margin: 0 0 8px;
+  }
+  p.subtitle {
+    color: var(--muted);
+    margin: 0 0 24px;
+    font-size: 14px;
+  }
+  .dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 32px 16px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .dropzone:hover, .dropzone.dragover {
+    border-color: var(--accent);
+    background: rgba(109, 140, 255, 0.06);
+  }
+  .dropzone p { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
+  input[type="file"] { display: none; }
+  button {
+    margin-top: 20px;
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+    background: var(--accent);
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .preview {
+    margin-top: 20px;
+    display: none;
+  }
+  .preview img {
+    max-width: 100%;
+    max-height: 260px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+  .status {
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--muted);
+    min-height: 18px;
+  }
+  a.download-link {
+    display: inline-block;
+    margin-top: 14px;
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Background Remover</h1>
+    <p class="subtitle">Upload an image and get a clean cutout, powered by rembg.</p>
+
+    <div class="dropzone" id="dropzone">
+      <p id="dropzone-text">Click to choose an image, or drag one here</p>
+    </div>
+    <input type="file" id="fileInput" accept="image/*" />
+
+    <div class="preview" id="preview">
+      <img id="previewImg" alt="preview" />
+    </div>
+
+    <button id="submitBtn" disabled>Remove Background</button>
+
+    <div class="status" id="status"></div>
+    <a class="download-link" id="downloadLink" style="display:none;" download="no-bg.png">Download result</a>
+  </div>
+
+<script>
+  const dropzone = document.getElementById('dropzone');
+  const dropzoneText = document.getElementById('dropzone-text');
+  const fileInput = document.getElementById('fileInput');
+  const preview = document.getElementById('preview');
+  const previewImg = document.getElementById('previewImg');
+  const submitBtn = document.getElementById('submitBtn');
+  const status = document.getElementById('status');
+  const downloadLink = document.getElementById('downloadLink');
+
+  let selectedFile = null;
+
+  dropzone.addEventListener('click', () => fileInput.click());
+
+  dropzone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropzone.classList.add('dragover');
+  });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+    if (e.dataTransfer.files.length) {
+      handleFile(e.dataTransfer.files[0]);
+    }
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) handleFile(fileInput.files[0]);
+  });
+
+  function handleFile(file) {
+    if (!file.type.startsWith('image/')) {
+      status.textContent = 'Please choose an image file.';
+      return;
+    }
+    selectedFile = file;
+    dropzoneText.textContent = file.name;
+    previewImg.src = URL.createObjectURL(file);
+    preview.style.display = 'block';
+    submitBtn.disabled = false;
+    status.textContent = '';
+    downloadLink.style.display = 'none';
+  }
+
+  submitBtn.addEventListener('click', async () => {
+    if (!selectedFile) return;
+    submitBtn.disabled = true;
+    status.textContent = 'Removing background... this can take a few seconds.';
+    downloadLink.style.display = 'none';
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    try {
+      const res = await fetch('/remove-bg', { method: 'POST', body: formData });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Something went wrong.');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      previewImg.src = url;
+      downloadLink.href = url;
+      downloadLink.style.display = 'inline-block';
+      status.textContent = 'Done!';
+    } catch (err) {
+      status.textContent = 'Error: ' + err.message;
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
